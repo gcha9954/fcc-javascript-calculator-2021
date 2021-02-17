@@ -6,7 +6,8 @@ export default class Calculator extends Component {
   constructor(props) {
     super(props);
     this.state = {
-      inputStr: "0"
+      inputStr: "0",
+      result: false
     };
     this.handleNum = this.handleNum.bind(this);
     this.handleOperator = this.handleOperator.bind(this);
@@ -17,42 +18,56 @@ export default class Calculator extends Component {
 
   // handles concatenating numbers to the end of inputStr when a number key is clicked
   handleNum(event) {
-    if (event.target.innerHTML === "0" && this.state.inputStr === "0") {
-      // if '0' is clicked and inputStr is just '0', does not do anything (so can't type '00')
-      this.setState((state) => state);
-    } else if (event.target.innerHTML !== "0" && this.state.inputStr === "0") {
-      // else if any other number is clicked and inputStr is just '0', replaces '0' with the number
-      this.setState((state) => {
-        return { inputStr: event.target.innerHTML };
-      });
-    } else {
-      // else just concatenate the clicked number onto the end of inputStr
-      this.setState((state) => {
+    this.setState((state) => {
+      if (event.target.innerHTML === "0" && state.inputStr === "0") {
+        return state;
+      } else if (
+        event.target.innerHTML !== "0" &&
+        (state.inputStr === "0" || state.result)
+      ) {
+        return { inputStr: event.target.innerHTML, result: false };
+      } else {
         return { inputStr: state.inputStr + event.target.innerHTML };
-      });
-    }
+      }
+    });
   }
 
   // handles concatenating an operator (+-×÷) to the end of inputStr when an operator key is clicked
   handleOperator(event) {
-    if (this.state.inputStr[0].match(/\d/)) {
-      // if the last char in inputStr is a number (otherwise expression wouldn't make sense),
-      // concatenate the operator onto inputStr
-      this.setState((state) => {
-        return { inputStr: state.inputStr + event.target.innerHTML };
-      });
-    }
+    // if the last char in inputStr is a number (otherwise expression wouldn't make sense),
+    // concatenate the operator onto inputStr.
+    // the question mark means that if this.state.inputStr[0] is null, it won't throw
+    // an error.
+    this.setState((state) => {
+      if (
+        state.inputStr[state.inputStr.length - 1]?.match(/\d/) ||
+        (state.inputStr[state.inputStr.length - 1]?.match(/[+-×÷]/) &&
+          event.target.innerHTML === "-")
+      ) {
+        return {
+          inputStr: state.inputStr + event.target.innerHTML,
+          result: false
+        };
+      } else if (state.inputStr.match(/\d[+-×÷]{2}$/)) {
+        state.inputStr = state.inputStr.slice(0, -2);
+        return {
+          inputStr: state.inputStr + event.target.innerHTML,
+          result: false
+        };
+      } else if (state.inputStr.match(/[+-×÷]{1}$/)) {
+        state.inputStr = state.inputStr.slice(0, -1);
+        return {
+          inputStr: state.inputStr + event.target.innerHTML,
+          result: false
+        };
+      }
+    });
   }
 
   // handles concatenating '.' onto inputStr when decimal key is pressed
-  // BUG: does not allow '.' to be added if a '.' exists anywhere in expression
-  // should just be if there is already a '.' in the current number
   handleDecimal(event) {
-    if (
-      this.state.inputStr.indexOf(".") === -1 &&
-      this.state.inputStr[this.state.inputStr.length - 1].match(/\d/)
-    ) {
-      // if there is no dot already in expression, add a '.' to the end
+    if (!this.state.inputStr.match(/\d?\.\d?$/) && !this.state.result) {
+      // if there is not already a decimal in the last number, concat a decimal point
       this.setState((state) => {
         return { inputStr: state.inputStr + event.target.innerHTML };
       });
@@ -61,14 +76,25 @@ export default class Calculator extends Component {
 
   // evaluated inputStr (which should be a valid mathematical expression) using MathJS
   equals() {
-    // BUG: this is not working
-    let scope = {
-      "×": "*",
-      "÷": "/"
-    };
-    this.setState((state) => ({
-      inputStr: evaluate(this.state.inputStr, scope)
-    }));
+    this.setState((state) => {
+      // create a copy of inputStr to work on
+      let evalStr = this.state.inputStr.slice();
+
+      // if the final char is not a number, strip it
+      if (!this.state.inputStr[this.state.inputStr.length - 1].match(/\d/)) {
+        evalStr = evalStr.slice(0, -1);
+      }
+
+      // create a copy of inputStr and replace ×,÷ with *,/ so that mathjs can evaluate
+      evalStr = evalStr.replace("×", "*");
+      evalStr = evalStr.replace("÷", "/");
+
+      // sets inputStr to the evaluated evalStr i.e. displays the result of the expression
+      return {
+        inputStr: evaluate(evalStr).toString(),
+        result: true
+      };
+    });
   }
 
   // sets inputStr back to default when clear key is pressed
@@ -126,7 +152,7 @@ export default class Calculator extends Component {
             id="subtract"
             onClick={this.handleOperator}
           >
-            −
+            -
           </div>
           <div
             className="btn btn-operator"
